@@ -1156,6 +1156,18 @@ def run_analysis(checkpoint: bool = False):
         final_state = trace[-1]
         decision = graph.process_signal(final_state["final_trade_decision"])
 
+        # Persist JSON state + 12-file markdown bundle (parity with Web flow).
+        # graph._log_state needs self.ticker set (see web/runner.py:101).
+        graph.ticker = selections["ticker"]
+        try:
+            graph._log_state(selections["analysis_date"], final_state)
+            auto_report_dir = (
+                graph.log_states_dict.get(str(selections["analysis_date"]), {}).get("_report_dir")
+            )
+        except Exception as e:
+            auto_report_dir = None
+            console.print(f"[yellow]⚠ Auto-save failed: {e}[/yellow]")
+
         # Update all agent statuses to completed
         for agent in message_buffer.agent_status:
             message_buffer.update_agent_status(agent, "completed")
@@ -1174,7 +1186,13 @@ def run_analysis(checkpoint: bool = False):
     # Post-analysis prompts (outside Live context for clean interaction)
     console.print("\n[bold cyan]Analysis Complete![/bold cyan]\n")
 
-    # Prompt to save report
+    if auto_report_dir:
+        console.print(f"[green]✓ 自动保存:[/green] {auto_report_dir}")
+        console.print(f"  [dim]12 个 md + report.md（与 Web 端格式一致）[/dim]\n")
+
+    # Prompt to save an additional copy (legacy English subdir layout).
+    # The standard Chinese flat report has already auto-saved above; this
+    # prompt is kept for backward compat with the original CLI UX.
     save_choice = typer.prompt("Save report?", default="Y").strip().upper()
     if save_choice in ("Y", "YES", ""):
         timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")

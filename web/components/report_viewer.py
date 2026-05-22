@@ -2,11 +2,14 @@
 
 from __future__ import annotations
 
+import datetime
 import re
+from pathlib import Path
 from typing import Any
 
 import streamlit as st
 
+from tradingagents.dataflows.utils import safe_ticker_component
 from web.pdf_export import generate_pdf
 
 
@@ -14,8 +17,40 @@ def _strip_think(text: str) -> str:
     return re.sub(r"<think>.*?</think>\s*", "", text, flags=re.DOTALL).strip()
 
 
+def _persist_pdf_to_disk(
+    pdf_bytes: bytes,
+    final_state: dict[str, Any],
+    ticker: str,
+    trade_date: str,
+) -> str | None:
+    """Write the generated PDF to the report dir set up by trading_graph._log_state.
+
+    Falls back to a date-keyed dir if `_report_dir` is missing or the path no
+    longer exists (e.g. historical reports written before this feature shipped).
+    """
+    report_dir_str = final_state.get("_report_dir") if isinstance(final_state, dict) else None
+    report_dir = Path(report_dir_str) if report_dir_str else None
+    if report_dir is None or not report_dir.is_dir():
+        # Project root = three levels up from web/components/report_viewer.py.
+        safe_ticker = safe_ticker_component(ticker)
+        project_root = Path(__file__).resolve().parents[2]
+        report_dir = project_root / "reports" / f"{safe_ticker}_{trade_date}_pdfonly"
+        report_dir.mkdir(parents=True, exist_ok=True)
+    ts = datetime.datetime.now().strftime("%H%M%S")
+    pdf_path = report_dir / f"report_{ts}.pdf"
+    try:
+        pdf_path.write_bytes(pdf_bytes)
+        return str(pdf_path)
+    except Exception:
+        return None
+
+
 def _signal_style(signal: str) -> tuple[str, str]:
     s = signal.upper()
+    if "OVERWEIGHT" in s:
+        return "#84cc16", "增持"
+    if "UNDERWEIGHT" in s:
+        return "#f97316", "减持"
     if "BUY" in s:
         return "#22c55e", "买入"
     if "SELL" in s:
@@ -78,12 +113,17 @@ def render_report(
     col_pdf, col_spacer = st.columns([1, 3])
     with col_pdf:
         pdf_key = f"_pdf_bytes_{ticker}_{trade_date}"
+        pdf_path_key = f"_pdf_path_{ticker}_{trade_date}"
         if pdf_key not in st.session_state:
             if st.button("📥 生成 PDF 报告", use_container_width=True):
                 with st.spinner("生成 PDF 中…"):
                     try:
-                        st.session_state[pdf_key] = generate_pdf(
+                        pdf_bytes = generate_pdf(
                             final_state, ticker, trade_date, signal
+                        )
+                        st.session_state[pdf_key] = pdf_bytes
+                        st.session_state[pdf_path_key] = _persist_pdf_to_disk(
+                            pdf_bytes, final_state, ticker, trade_date
                         )
                     except Exception as exc:
                         st.error(f"PDF 生成失败：{exc}（页面内容未受影响）")
@@ -96,6 +136,9 @@ def render_report(
                 mime="application/pdf",
                 use_container_width=True,
             )
+            saved_path = st.session_state.get(pdf_path_key)
+            if saved_path:
+                st.caption(f"✓ 已落盘: `{saved_path}`")
 
     st.markdown("---")
 

@@ -41,19 +41,34 @@ def load_analysis(path: str) -> dict[str, Any]:
 
 
 def extract_signal(state: dict[str, Any]) -> str:
-    """Extract the short signal (Buy/Sell/Hold) from a final state dict."""
+    """Extract the short signal from a final state dict.
+
+    Prefers the structured `**Rating**: X` line in final_trade_decision (authoritative);
+    falls back to keyword scan in priority order (most specific first, so "Underweight"
+    wins over the "Buy" substring that often appears in debate references).
+    """
     import re
 
+    keywords = ("OVERWEIGHT", "UNDERWEIGHT", "SELL", "BUY", "HOLD")
+
     for field in (
+        "final_trade_decision",
         "investment_plan",
         "trader_investment_decision",
-        "final_trade_decision",
     ):
         text = state.get(field, "")
         if not text:
             continue
         cleaned = re.sub(r"<think>.*?</think>", "", text, flags=re.DOTALL)
-        for keyword in ("BUY", "SELL", "HOLD"):
-            if keyword in cleaned.upper():
+        # Try `**Rating**: X` first
+        m = re.search(r"\*\*Rating\*\*\s*:\s*([A-Za-z]+)", cleaned)
+        if m:
+            word = m.group(1).upper()
+            if word in keywords:
+                return word.capitalize()
+        # Fallback: priority keyword scan
+        upper = cleaned.upper()
+        for keyword in keywords:
+            if keyword in upper:
                 return keyword.capitalize()
     return "N/A"

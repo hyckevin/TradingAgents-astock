@@ -424,6 +424,17 @@ class TradingAgentsGraph:
         directory = Path(self.config["results_dir"]) / safe_ticker / "TradingAgentsStrategy_logs"
         directory.mkdir(parents=True, exist_ok=True)
 
+        # Persist the flat markdown report bundle next to JSON (parallel dir).
+        # Stash the report dir in the saved JSON so consumers (Web PDF button,
+        # future tools) can re-locate it after a re-read.
+        from tradingagents.io.report_persist import write_markdown_report
+        report_dir = write_markdown_report(
+            self.log_states_dict[str(trade_date)],
+            ticker=self.ticker,
+            trade_date=str(trade_date),
+        )
+        self.log_states_dict[str(trade_date)]["_report_dir"] = str(report_dir)
+
         log_path = directory / f"full_states_log_{trade_date}.json"
         with open(log_path, "w", encoding="utf-8") as f:
             json.dump(self.log_states_dict[str(trade_date)], f, indent=4)

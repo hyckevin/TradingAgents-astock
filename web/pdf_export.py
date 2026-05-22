@@ -33,6 +33,10 @@ def _signal_color(signal: str) -> str:
 
 def _signal_cn(signal: str) -> str:
     s = (signal or "").upper()
+    if "OVERWEIGHT" in s:
+        return "增持"
+    if "UNDERWEIGHT" in s:
+        return "减持"
     if "BUY" in s:
         return "买入"
     if "SELL" in s:
