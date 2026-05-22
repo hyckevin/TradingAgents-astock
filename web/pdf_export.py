@@ -171,14 +171,25 @@ _CSS = """
         border-bottom: 0.5pt solid #ddd;
         padding-bottom: 4mm;
     }
-    @bottom-center {
+    @bottom-left {
+        content: "仅供学习研究，不构成投资建议";
+        font-family: "PingFang SC", "Heiti SC", "Noto Sans CJK SC", sans-serif;
+        font-size: 7.5pt;
+        color: #bbb;
+    }
+    @bottom-right {
         content: "Page " counter(page) " / " counter(pages);
         font-family: "PingFang SC", "Heiti SC", "Noto Sans CJK SC", sans-serif;
         font-size: 8.5pt;
         color: #aaa;
     }
 }
-@page cover { margin: 0; @top-center { content: none; } @bottom-center { content: none; } }
+@page cover {
+    margin: 0;
+    @top-center { content: none; }
+    @bottom-left { content: none; }
+    @bottom-right { content: none; }
+}
 
 * { box-sizing: border-box; }
 
